@@ -14,4 +14,10 @@ abstract class SongDao {
 
   @insert
   Future<void> insertSong(Song song);
+
+  @update
+  Future<int> updateSong(Song song);
+
+  @delete
+  Future<void> removeSong(Song song);
 }

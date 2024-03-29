@@ -85,7 +85,7 @@ class _$AppDatabase extends AppDatabase {
       },
       onCreate: (database, version) async {
         await database.execute(
-            'CREATE TABLE IF NOT EXISTS `Song` (`id` INTEGER PRIMARY KEY AUTOINCREMENT, `name` TEXT NOT NULL, `path` TEXT NOT NULL, `artist` TEXT, `album` TEXT)');
+            'CREATE TABLE IF NOT EXISTS `Song` (`id` INTEGER PRIMARY KEY AUTOINCREMENT, `name` TEXT NOT NULL, `path` TEXT NOT NULL, `artist` TEXT, `album` TEXT, `cover` TEXT)');
 
         await callback?.onCreate?.call(database, version);
       },
@@ -112,7 +112,34 @@ class _$SongDao extends SongDao {
                   'name': item.name,
                   'path': item.path,
                   'artist': item.artist,
-                  'album': item.album
+                  'album': item.album,
+                  'cover': item.cover
+                },
+            changeListener),
+        _songUpdateAdapter = UpdateAdapter(
+            database,
+            'Song',
+            ['id'],
+            (Song item) => <String, Object?>{
+                  'id': item.id,
+                  'name': item.name,
+                  'path': item.path,
+                  'artist': item.artist,
+                  'album': item.album,
+                  'cover': item.cover
+                },
+            changeListener),
+        _songDeletionAdapter = DeletionAdapter(
+            database,
+            'Song',
+            ['id'],
+            (Song item) => <String, Object?>{
+                  'id': item.id,
+                  'name': item.name,
+                  'path': item.path,
+                  'artist': item.artist,
+                  'album': item.album,
+                  'cover': item.cover
                 },
             changeListener);
 
@@ -124,6 +151,10 @@ class _$SongDao extends SongDao {
 
   final InsertionAdapter<Song> _songInsertionAdapter;
 
+  final UpdateAdapter<Song> _songUpdateAdapter;
+
+  final DeletionAdapter<Song> _songDeletionAdapter;
+
   @override
   Future<List<Song>> findAllSong() async {
     return _queryAdapter.queryList('SELECT * FROM Song',
@@ -132,7 +163,8 @@ class _$SongDao extends SongDao {
             row['name'] as String,
             row['path'] as String,
             row['artist'] as String?,
-            row['album'] as String?));
+            row['album'] as String?,
+            row['cover'] as String?));
   }
 
   @override
@@ -151,7 +183,8 @@ class _$SongDao extends SongDao {
             row['name'] as String,
             row['path'] as String,
             row['artist'] as String?,
-            row['album'] as String?),
+            row['album'] as String?,
+            row['cover'] as String?),
         arguments: [id],
         queryableName: 'Song',
         isView: false);
@@ -160,5 +193,16 @@ class _$SongDao extends SongDao {
   @override
   Future<void> insertSong(Song song) async {
     await _songInsertionAdapter.insert(song, OnConflictStrategy.abort);
+  }
+
+  @override
+  Future<int> updateSong(Song song) {
+    return _songUpdateAdapter.updateAndReturnChangedRows(
+        song, OnConflictStrategy.abort);
+  }
+
+  @override
+  Future<void> removeSong(Song song) async {
+    await _songDeletionAdapter.delete(song);
   }
 }

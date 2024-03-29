@@ -1,17 +1,17 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
+import 'package:fmusic/global.dart';
 import 'package:fmusic/main_provider.dart';
 import 'package:fmusic/screens/home.dart';
 import 'package:fmusic/screens/settings.dart';
 import 'package:media_kit/media_kit.dart';
-import 'package:metadata_god/metadata_god.dart';
 import 'package:provider/provider.dart';
 import 'package:window_manager/window_manager.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
   MediaKit.ensureInitialized();
-  MetadataGod.initialize();
+  await Global.init();
 
   if (Platform.isWindows) {
     await windowManager.ensureInitialized();

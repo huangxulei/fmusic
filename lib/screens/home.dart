@@ -1,9 +1,13 @@
+import 'dart:convert';
+import 'dart:io';
+import 'package:audio_metadata_reader/audio_metadata_reader.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:fmusic/database/song.dart';
 import 'package:fmusic/global.dart';
 import 'package:fmusic/main_provider.dart';
-import 'package:metadata_god/metadata_god.dart';
+import 'package:fmusic/screens/image_place_holder.dart';
+import 'package:fmusic/widget/player.dart';
 import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:sqflite/sqflite.dart';
@@ -17,8 +21,8 @@ class Home extends StatefulWidget {
 }
 
 class _HomeState extends State<Home> {
-  Map<String, dynamic> nowPlaying = {};
   List<Song> allSongs = []; //歌曲列表
+  Song? nowPlaying;
   bool batchEdit = false;
   Map<String, bool> selectedFiles = {}; //选择文件
   bool currentlyDownloading = false;
@@ -26,15 +30,7 @@ class _HomeState extends State<Home> {
   @override
   void initState() {
     super.initState();
-    () async {
-      try {
-        await Global.init();
-        setState(() {});
-      } catch (e, st) {
-        print(e);
-        setState(() {});
-      }
-    }();
+    updatePlaylist();
   }
 
   Future<void> loadProviders() async {
@@ -53,15 +49,15 @@ class _HomeState extends State<Home> {
   }
 
   Future<void> updatePlaylist() async {
-    final List<Song> files = await Global.songDao.findAllSong();
+    final List<Song> songs = await Global.songDao!.findAllSong();
 
     setState(() {
-      allSongs = files;
+      allSongs = songs;
     });
   }
 
   Future<void> addToDB(Song song) async {
-    await Global.songDao.insertSong(song);
+    await Global.songDao!.insertSong(song);
   }
 
   Future<void> addFile() async {
@@ -75,13 +71,20 @@ class _HomeState extends State<Home> {
       if (value == null) return;
       final files = value.files;
       for (final file in files) {
-        final path = file.path!;
-        Metadata metadata = await MetadataGod.readMetadata(file: path);
+        // final path = file.path!;
+        // Metadata metadata = await MetadataGod.readMetadata(file: path);
+        final track = File(file.path!);
+        final metadata = await readMetadata(track, getImage: true);
+        String? coverStr;
+        if (metadata.pictures.isNotEmpty) {
+          coverStr = base64Encode(metadata.pictures[0].bytes);
+        }
         final s = Song.optional(
-            name: metadata.title ?? p.basename(path),
-            path: path,
+            name: metadata.title ?? p.basename(file.path!),
+            path: file.path,
             artist: metadata.artist ?? "Unkonwn",
-            album: metadata.album ?? "Unkonwn");
+            album: metadata.album ?? "Unkonwn",
+            cover: coverStr ?? "Unkonwn");
         await addToDB(s);
         updatePlaylist();
         setState(() {});
@@ -122,7 +125,7 @@ class _HomeState extends State<Home> {
           const SizedBox.shrink(),
           Expanded(
               child: FutureBuilder<List<Song>>(
-                  future: Global.songDao.findAllSong(),
+                  future: Global.songDao!.findAllSong(),
                   builder: (context, snapshot) {
                     if (snapshot.connectionState == ConnectionState.waiting) {
                       return const CircularProgressIndicator();
@@ -138,14 +141,150 @@ class _HomeState extends State<Home> {
                             itemBuilder: (context, index) {
                               Song song = songs[index];
                               return ListTile(
-                                title: Text(song.name),
-                                subtitle:
-                                    Text("${song.artist} - ${song.album}"),
-                              );
+                                  leading: song.cover != "Unkonwn"
+                                      ? Image.memory(base64Decode(song.cover!))
+                                      : const ImagePlaceHolder(
+                                          height: 50,
+                                          width: 50,
+                                          error: true,
+                                        ),
+                                  title: Text(song.name),
+                                  subtitle:
+                                      Text("${song.artist} - ${song.album}"),
+                                  trailing: IconButton(
+                                      icon: const Icon(Icons.edit),
+                                      onPressed: () async {
+                                        final nameTextController =
+                                            TextEditingController(
+                                                text: song.name);
+                                        final artistTextController =
+                                            TextEditingController(
+                                                text: song.artist);
+                                        final albumTextController =
+                                            TextEditingController(
+                                                text: song.album);
+                                        if (context.mounted) {
+                                          showDialog(
+                                              context: context,
+                                              builder: (context) {
+                                                return AlertDialog(
+                                                    title: Text(
+                                                        "Edit ${song.name}"),
+                                                    content: Column(
+                                                      mainAxisSize:
+                                                          MainAxisSize.min,
+                                                      children: [
+                                                        TextField(
+                                                          decoration:
+                                                              const InputDecoration(
+                                                            labelText: 'Name',
+                                                          ),
+                                                          controller:
+                                                              nameTextController,
+                                                        ),
+                                                        TextField(
+                                                          decoration:
+                                                              const InputDecoration(
+                                                            labelText: 'Artist',
+                                                          ),
+                                                          controller:
+                                                              artistTextController,
+                                                        ),
+                                                        TextField(
+                                                          decoration:
+                                                              const InputDecoration(
+                                                            labelText: 'Album',
+                                                          ),
+                                                          controller:
+                                                              albumTextController,
+                                                        ),
+                                                      ],
+                                                    ),
+                                                    actions: [
+                                                      TextButton(
+                                                          onPressed: () {
+                                                            albumTextController
+                                                                .dispose();
+                                                            artistTextController
+                                                                .dispose();
+                                                            nameTextController
+                                                                .dispose();
+                                                            if (context
+                                                                .mounted) {
+                                                              Navigator.pop(
+                                                                  context);
+                                                            }
+                                                          },
+                                                          child:
+                                                              const Text("取消")),
+                                                      TextButton(
+                                                          onPressed: () async {
+                                                            await Global
+                                                                .songDao!
+                                                                .removeSong(
+                                                                    song);
+                                                            setState(() {});
+                                                            albumTextController
+                                                                .dispose();
+                                                            artistTextController
+                                                                .dispose();
+                                                            nameTextController
+                                                                .dispose();
+                                                            if (context
+                                                                .mounted) {
+                                                              Navigator.pop(
+                                                                  context);
+                                                            }
+                                                          },
+                                                          child:
+                                                              const Text("删除")),
+                                                      TextButton(
+                                                          onPressed: () async {
+                                                            Song _song = Song(
+                                                                song.id,
+                                                                nameTextController
+                                                                    .text,
+                                                                song.path,
+                                                                artistTextController
+                                                                    .text,
+                                                                albumTextController
+                                                                    .text,
+                                                                song.cover);
+
+                                                            await Global
+                                                                .songDao!
+                                                                .updateSong(
+                                                                    _song);
+                                                            updatePlaylist();
+                                                            setState(() {});
+                                                            albumTextController
+                                                                .dispose();
+                                                            artistTextController
+                                                                .dispose();
+                                                            nameTextController
+                                                                .dispose();
+                                                            if (context
+                                                                .mounted) {
+                                                              Navigator.pop(
+                                                                  context);
+                                                            }
+                                                          },
+                                                          child:
+                                                              const Text("修改")),
+                                                    ]);
+                                              });
+                                        }
+                                      }),
+                                  onTap: () {
+                                    setState(() {
+                                      nowPlaying = song;
+                                    });
+                                  });
                             });
                       }
                     }
-                  }))
+                  })),
+          PlayerWidget(allSongs: allSongs, nowPlaying: nowPlaying)
         ]));
   }
 }

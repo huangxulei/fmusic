@@ -12,8 +12,11 @@ class Global with ChangeNotifier {
   static late bool _isDesktop;
   static bool get isDesktop => _isDesktop;
 
-  static late SongDao _songDao;
-  static SongDao get songDao => _songDao;
+  /// 默认分隔线高度
+  static double lineSize = 0.35;
+
+  static SongDao? _songDao;
+  static SongDao? get songDao => _songDao;
 
   static Future<bool> init() async {
     _isDesktop = Platform.isLinux || Platform.isMacOS || Platform.isWindows;
